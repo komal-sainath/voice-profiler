@@ -1,14 +1,14 @@
 // backend/src/routes/profiles.ts
 import { Router } from "express";
 import { z } from "zod";
-import { pool } from "../db";
+import { getProfilesCollection } from "../db";
 import { bestMatch, l2Normalize } from "../embeddings";
 
 const router = Router();
 
 const CreateProfileSchema = z.object({
   name: z.string().min(1),
-  embedding: z.array(z.number()).min(8), // adjust min length to your model
+  embedding: z.array(z.number()).min(8),
 });
 
 router.post("/", async (req, res) => {
@@ -16,32 +16,41 @@ router.post("/", async (req, res) => {
   if (!parsed.success) return res.status(400).json(parsed.error);
   const { name, embedding } = parsed.data;
   const norm = l2Normalize(embedding);
-  const r = await pool.query(
-    "INSERT INTO profiles (name, embedding) VALUES ($1, $2) RETURNING id, name",
-    [name, norm]
-  );
-  res.json(r.rows[0]);
+  const collection = await getProfilesCollection();
+  const result = await collection.insertOne({
+    name,
+    embedding: norm,
+    created_at: new Date(),
+  });
+  res.json({ id: result.insertedId.toString(), name });
 });
 
 router.get("/", async (_req, res) => {
-  const r = await pool.query("SELECT id, name FROM profiles ORDER BY id DESC");
-  res.json(r.rows);
+  const collection = await getProfilesCollection();
+  const profiles = await collection.find({}).sort({ _id: -1 }).toArray();
+  res.json(
+    profiles.map((p) => ({
+      id: p._id.toString(),
+      name: p.name,
+    })),
+  );
 });
 
 router.post("/match", async (req, res) => {
   const EmbeddingSchema = z.object({
     embedding: z.array(z.number()).min(8),
-    threshold: z.number().min(-1).max(1).optional(), // cosine threshold
+    threshold: z.number().min(-1).max(1).optional(),
   });
   const parsed = EmbeddingSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error);
   const { embedding, threshold = 0.6 } = parsed.data;
   const norm = l2Normalize(embedding);
-  const r = await pool.query("SELECT id, name, embedding FROM profiles");
-  const candidates = r.rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    embedding: row.embedding as number[],
+  const collection = await getProfilesCollection();
+  const profiles = await collection.find({}).toArray();
+  const candidates = profiles.map((p) => ({
+    id: p._id.toString(),
+    name: p.name,
+    embedding: p.embedding as number[],
   }));
   const { profile, score } = bestMatch(norm, candidates);
   if (!profile || score < threshold) return res.json({ match: null, score });

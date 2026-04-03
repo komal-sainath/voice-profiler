@@ -7,23 +7,23 @@ const api = axios.create({
 
 export async function createProfile(name: string, embedding: number[]) {
   const { data } = await api.post("/profiles", { name, embedding });
-  return data as { id: number; name: string };
+  return data as { id: string; name: string };
 }
 
 export async function matchProfile(embedding: number[], threshold?: number) {
   const { data } = await api.post("/profiles/match", { embedding, threshold });
-  return data as { match: { id: number; name: string } | null; score: number };
+  return data as { match: { id: string; name: string } | null; score: number };
 }
 
-export async function getTasks(profileId: number) {
+export async function getTasks(profileId: string) {
   const { data } = await api.get(`/tasks/${profileId}`);
   return data;
 }
 
 export async function createTask(
-  profileId: number,
+  profileId: string,
   title: string,
-  dueDate?: string
+  dueDate?: string,
 ) {
   const { data } = await api.post(`/tasks`, {
     profile_id: profileId,
@@ -33,15 +33,15 @@ export async function createTask(
   return data;
 }
 
-export async function getReminders(profileId: number) {
+export async function getReminders(profileId: string) {
   const { data } = await api.get(`/reminders/${profileId}`);
   return data;
 }
 
 export async function createReminder(
-  profileId: number,
+  profileId: string,
   message: string,
-  remindAt: string
+  remindAt: string,
 ) {
   const { data } = await api.post(`/reminders`, {
     profile_id: profileId,

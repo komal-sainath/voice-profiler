@@ -4,7 +4,7 @@ import ProfileMatch from "./components/ProfileMatch";
 import TasksReminders from "./components/TasksReminders";
 
 export default function App() {
-  const [profileId, setProfileId] = useState<number | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
 
   return (
     <div style={{ maxWidth: 760, margin: "0 auto", padding: 24 }}>
@@ -15,9 +15,9 @@ export default function App() {
         <label>
           <span>Active profile ID:</span>
           <input
-            type="number"
+            type="text"
             value={profileId ?? ""}
-            onChange={(e) => setProfileId(Number(e.target.value))}
+            onChange={(e) => setProfileId(e.target.value)}
             placeholder="Enter matched profile ID"
           />
         </label>

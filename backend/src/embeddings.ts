@@ -9,7 +9,7 @@ export function cosineSimilarity(a: number[], b: number[]) {
 
 export function bestMatch(
   query: number[],
-  candidates: { id: number; name: string; embedding: number[] }[]
+  candidates: { id: string; name: string; embedding: number[] }[],
 ) {
   let top = {
     profile: null as null | (typeof candidates)[number],

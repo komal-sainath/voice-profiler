@@ -1,32 +1,50 @@
 // backend/src/db.ts
-import { Pool } from "pg";
+import { Db, MongoClient } from "mongodb";
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-});
+let db: Db | null = null;
+
+async function getDb(): Promise<Db> {
+  if (db) return db;
+  const client = new MongoClient(process.env.DATABASE_URL || "");
+  await client.connect();
+  db = client.db("voice_profiler");
+  return db;
+}
 
 export async function initSchema() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS profiles (
-      id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
-      embedding DOUBLE PRECISION[] NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS tasks (
-      id SERIAL PRIMARY KEY,
-      profile_id INT REFERENCES profiles(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
-      due_date TIMESTAMP,
-      completed BOOLEAN DEFAULT FALSE,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-    CREATE TABLE IF NOT EXISTS reminders (
-      id SERIAL PRIMARY KEY,
-      profile_id INT REFERENCES profiles(id) ON DELETE CASCADE,
-      message TEXT NOT NULL,
-      remind_at TIMESTAMP NOT NULL,
-      created_at TIMESTAMP DEFAULT NOW()
-    );
-  `);
+  const database = await getDb();
+
+  // Create collections if they don't exist
+  const collections = await database.listCollections().toArray();
+  const collectionNames = collections.map((c) => c.name);
+
+  if (!collectionNames.includes("profiles")) {
+    await database.createCollection("profiles");
+    await database.collection("profiles").createIndex({ name: 1 });
+  }
+
+  if (!collectionNames.includes("tasks")) {
+    await database.createCollection("tasks");
+    await database.collection("tasks").createIndex({ profile_id: 1 });
+  }
+
+  if (!collectionNames.includes("reminders")) {
+    await database.createCollection("reminders");
+    await database.collection("reminders").createIndex({ profile_id: 1 });
+  }
+}
+
+export async function getProfilesCollection() {
+  const database = await getDb();
+  return database.collection("profiles");
+}
+
+export async function getTasksCollection() {
+  const database = await getDb();
+  return database.collection("tasks");
+}
+
+export async function getRemindersCollection() {
+  const database = await getDb();
+  return database.collection("reminders");
 }

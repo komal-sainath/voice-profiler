@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { createReminder, createTask, getReminders, getTasks } from "../api";
 
-type Props = { profileId: number };
+type Props = { profileId: string };
 
 export default function TasksReminders({ profileId }: Props) {
   const [tasks, setTasks] = useState<any[]>([]);
@@ -29,7 +29,7 @@ export default function TasksReminders({ profileId }: Props) {
     const created = await createTask(
       profileId,
       taskTitle,
-      taskDue || undefined
+      taskDue || undefined,
     );
     setTasks([created, ...tasks]);
     setTaskTitle("");
