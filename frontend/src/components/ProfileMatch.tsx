@@ -1,24 +1,46 @@
 // frontend/src/components/ProfileMatch.tsx
 import { useEffect, useState } from "react";
-import { createProfile, getProfiles, matchProfile } from "../api";
+import { getProfiles, matchProfile } from "../api";
 import { blobToAudioBuffer } from "../ml/audio";
 import { getEmbeddingFromAudioBuffer, loadRecognizer } from "../ml/tf";
 import Recorder from "./Recorder";
 
-export default function ProfileMatch() {
-  const [embedding, setEmbedding] = useState<number[] | null>(null);
-  const [recordingBlob, setRecordingBlob] = useState<Blob | null>(null);
-  const [result, setResult] = useState<{ id: string; name: string } | null>(
-    null,
-  );
-  const [score, setScore] = useState<number | null>(null);
-  const [newProfileName, setNewProfileName] = useState("");
+const MATCH_THRESHOLD = 0.6;
+
+type ChatMessage = {
+  sender: "user" | "system";
+  text: string;
+  audioUrl?: string;
+};
+
+type Props = {
+  onProfileChange?: (
+    profileId: string | null,
+    profileName: string | null,
+  ) => void;
+  onNoMatch?: () => void;
+};
+
+export default function ProfileMatch({ onProfileChange, onNoMatch }: Props) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
   const [availableProfiles, setAvailableProfiles] = useState<
     Array<{ id: string; name: string }>
   >([]);
+  const [lastRecordingUrl, setLastRecordingUrl] = useState<string | null>(null);
+  const [pendingTranscript, setPendingTranscript] = useState<string | null>(
+    null,
+  );
+  const [pendingMessage, setPendingMessage] = useState<ChatMessage | null>(
+    null,
+  );
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      sender: "system",
+      text: "Welcome! Press the microphone to record your voice and sign in.",
+    },
+  ]);
 
   useEffect(() => {
     const loadProfiles = async () => {
@@ -32,138 +54,166 @@ export default function ProfileMatch() {
     loadProfiles();
   }, []);
 
+  useEffect(() => {
+    return () => {
+      if (lastRecordingUrl) {
+        URL.revokeObjectURL(lastRecordingUrl);
+      }
+      setPendingTranscript(null);
+      setPendingMessage(null);
+    };
+  }, [lastRecordingUrl]);
+
+  const addMessage = (message: ChatMessage) => {
+    setMessages((prev) => [...prev, message]);
+  };
+
+  const handleTranscript = (transcript: string) => {
+    setPendingTranscript(transcript);
+  };
+
   const handleRecordingComplete = async (blob: Blob) => {
-    setRecordingBlob(blob);
     setIsProcessing(true);
     setErrorMessage(null);
+
+    if (lastRecordingUrl) {
+      URL.revokeObjectURL(lastRecordingUrl);
+      setLastRecordingUrl(null);
+    }
+
+    const audioUrl = URL.createObjectURL(blob);
+    setLastRecordingUrl(audioUrl);
+
+    const userMessage: ChatMessage = {
+      sender: "user",
+      text: pendingTranscript || "Voice recording",
+      audioUrl: audioUrl,
+    };
+    setPendingMessage(userMessage);
+    setPendingTranscript(null);
 
     try {
       await loadRecognizer();
       const audioBuffer = await blobToAudioBuffer(blob);
       const emb = await getEmbeddingFromAudioBuffer(audioBuffer);
-      setEmbedding(emb);
+      const match = await matchProfile(emb, MATCH_THRESHOLD);
 
-      // Only attempt profile matching if user is signed in (has active profile)
-      if (activeProfileId) {
-        const match = await matchProfile(emb);
-        setResult(match.match);
-        setScore(match.score);
+      if (match.match && match.score >= MATCH_THRESHOLD) {
+        setActiveProfileId(match.match.id);
+        onProfileChange?.(match.match.id, match.match.name);
+        addMessage(userMessage);
+        addMessage({
+          sender: "system",
+          text: `Voice recognized. Signed in as ${match.match.name}.`,
+        });
       } else {
-        // User not signed in, just prepare for profile creation
-        setResult(null);
-        setScore(null);
+        addMessage(userMessage);
+        addMessage({
+          sender: "system",
+          text: "No matching voice profile found. Please create a new profile.",
+        });
+        onNoMatch?.();
       }
     } catch (err) {
       console.error(err);
       setErrorMessage(
         "Failed to process recording. Please try again or reload the page.",
       );
+      addMessage(userMessage);
+      addMessage({
+        sender: "system",
+        text: "There was a problem processing your voice. Try again.",
+      });
     } finally {
       setIsProcessing(false);
+      setPendingMessage(null);
     }
   };
 
-  const blobToDataUrl = (blob: Blob) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result === "string") {
-          resolve(reader.result);
-        } else {
-          reject(new Error("Failed to convert audio to data URL."));
-        }
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
-
-  const handleCreateProfile = async () => {
-    if (isProcessing)
-      return alert("Please wait while the recording is processed.");
-    if (!embedding) return alert("Record first to get embedding.");
-    if (!newProfileName.trim()) return alert("Enter profile name.");
-    if (!recordingBlob) return alert("No recording available.");
-
-    try {
-      const audio = await blobToDataUrl(recordingBlob);
-      const created = await createProfile(newProfileName, embedding, audio);
-      setResult(created);
-      setErrorMessage(null);
-    } catch (err) {
-      console.error(err);
-      alert("Failed to create profile. Check the console for details.");
+  const handleSignOut = () => {
+    setActiveProfileId(null);
+    if (lastRecordingUrl) {
+      URL.revokeObjectURL(lastRecordingUrl);
+      setLastRecordingUrl(null);
     }
+    setPendingTranscript(null);
+    setPendingMessage(null);
+    setErrorMessage(null);
+    setMessages([]);
+    onProfileChange?.(null, null);
   };
+
+  const currentProfile = availableProfiles.find(
+    (p) => p.id === activeProfileId,
+  );
 
   return (
-    <div style={{ display: "grid", gap: 12 }}>
-      <h2>Voice Profile Matcher</h2>
-
-      {/* Sign In Section */}
-      <div style={{ border: "1px solid #ccc", padding: 12, borderRadius: 4 }}>
-        <h3>Sign In</h3>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <select
-            value={activeProfileId || ""}
-            onChange={(e) => setActiveProfileId(e.target.value || null)}
-            style={{ flex: 1 }}
+    <div className="grid gap-4 p-6 rounded-[28px] bg-slate-900 border border-white/10">
+      <div className="flex justify-between items-center gap-4">
+        {activeProfileId && currentProfile ? (
+          <button
+            onClick={handleSignOut}
+            className="rounded-2xl bg-red-500 px-4 py-2 text-white hover:bg-red-400"
           >
-            <option value="">Not signed in</option>
-            {availableProfiles.map((profile) => (
-              <option key={profile.id} value={profile.id}>
-                {profile.name} (ID: {profile.id})
-              </option>
-            ))}
-          </select>
-          {activeProfileId && (
-            <button onClick={() => setActiveProfileId(null)}>Sign Out</button>
-          )}
-        </div>
-        {activeProfileId ? (
-          <p style={{ marginTop: 8, color: "green" }}>
-            Signed in as:{" "}
-            {availableProfiles.find((p) => p.id === activeProfileId)?.name}
-          </p>
-        ) : (
-          <p style={{ marginTop: 8, color: "#666" }}>
-            Sign in to enable voice matching. Without signing in, you can only
-            create new profiles.
-          </p>
+            Sign Out
+          </button>
+        ) : null}
+      </div>
+
+      <div className="min-h-[320px] max-h-[440px] overflow-y-auto grid gap-3 p-5 rounded-[22px] bg-slate-950 border border-white/10">
+        {messages.map((message, index) => {
+          const bubbleClass =
+            message.sender === "user"
+              ? "self-end max-w-[85%] rounded-[20px] rounded-tl-[4px] bg-blue-600"
+              : "self-start max-w-[85%] rounded-[20px] rounded-tr-[4px] bg-slate-800";
+
+          return (
+            <div
+              key={index}
+              className={`${bubbleClass} px-4 py-3 text-sm leading-6 text-white`}
+            >
+              {message.text}
+              {message.audioUrl ? (
+                <div className="mt-3 rounded-lg bg-slate-900 p-2">
+                  <audio controls src={message.audioUrl} className="w-full" />
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+
+        {isProcessing && pendingMessage && (
+          <div className="self-end max-w-[85%] rounded-[20px] rounded-tl-[4px] bg-blue-600/60 px-4 py-3 text-sm leading-6 text-white">
+            {pendingMessage.text}
+            {pendingMessage.audioUrl ? (
+              <div className="mt-3 rounded-lg bg-slate-900 p-2">
+                <audio
+                  controls
+                  src={pendingMessage.audioUrl}
+                  className="w-full"
+                />
+              </div>
+            ) : null}
+          </div>
+        )}
+
+        {isProcessing && pendingMessage && (
+          <div className="self-start max-w-[85%] rounded-[20px] rounded-tr-[4px] bg-slate-700/90 px-4 py-3 text-sm leading-6 text-slate-100 animate-pulse">
+            Processing your voice...
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="self-start max-w-[85%] rounded-[20px] rounded-tr-[4px] border border-rose-700 bg-rose-950/95 px-4 py-3 text-sm leading-6 text-rose-100">
+            {errorMessage}
+          </div>
         )}
       </div>
 
-      <Recorder onRecordingComplete={handleRecordingComplete} />
-      {isProcessing && <div>Processing recorded audio...</div>}
-      {!isProcessing && recordingBlob && !embedding && (
-        <div style={{ color: "#b00" }}>
-          Recording received, but embedding could not be generated.
-        </div>
-      )}
-      {embedding && <div>Embedding length: {embedding.length}</div>}
-      {score !== null && <div>Match score: {score.toFixed(3)}</div>}
-      {errorMessage && <div style={{ color: "#b00" }}>{errorMessage}</div>}
-      {result ? (
-        <div>
-          Matched Profile: {result.name} (ID {result.id})
-        </div>
-      ) : activeProfileId ? (
-        <div>No match found. Create a profile from this voice:</div>
-      ) : (
-        <div>Create a profile from this voice:</div>
-      )}
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <input
-          placeholder="New profile name"
-          value={newProfileName}
-          onChange={(e) => setNewProfileName(e.target.value)}
-        />
-        <button
-          onClick={handleCreateProfile}
-          disabled={isProcessing || !embedding}
-        >
-          {isProcessing ? "Processing embedding..." : "Create profile"}
-        </button>
-      </div>
+      <Recorder
+        onTranscript={handleTranscript}
+        onRecordingComplete={handleRecordingComplete}
+      />
     </div>
   );
 }

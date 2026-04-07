@@ -1,15 +1,20 @@
 // frontend/src/components/Recorder.tsx
 import { useEffect, useRef, useState } from "react";
+import { FiMic, FiStopCircle } from "react-icons/fi";
 
 type Props = {
   onRecordingComplete: (blob: Blob) => void;
+  onTranscript?: (text: string) => void;
 };
 
-export default function Recorder({ onRecordingComplete }: Props) {
+const SpeechRecognition =
+  (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+export default function Recorder({ onRecordingComplete, onTranscript }: Props) {
   const [isRecording, setIsRecording] = useState(false);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recognitionRef = useRef<any>(null);
   const chunksRef = useRef<Blob[]>([]);
   const intervalRef = useRef<number | null>(null);
 
@@ -20,17 +25,36 @@ export default function Recorder({ onRecordingComplete }: Props) {
       mediaRecorderRef.current = new MediaRecorder(stream, {
         mimeType: "audio/webm",
       });
+
       mediaRecorderRef.current.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
       };
+
       mediaRecorderRef.current.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-        setRecordedBlob(blob);
         onRecordingComplete(blob);
-        // cleanup tracks
-        stream.getTracks().forEach((t) => t.stop());
+        stream.getTracks().forEach((track) => track.stop());
       };
+
       mediaRecorderRef.current.start();
+
+      if (SpeechRecognition) {
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = false;
+        recognitionRef.current.interimResults = false;
+        recognitionRef.current.lang = "en-US";
+        recognitionRef.current.onresult = (event: any) => {
+          const transcript = event.results?.[0]?.[0]?.transcript?.trim();
+          if (transcript) {
+            onTranscript?.(transcript);
+          }
+        };
+        recognitionRef.current.onerror = (event: any) => {
+          console.warn("Speech recognition error:", event);
+        };
+        recognitionRef.current.start();
+      }
+
       setIsRecording(true);
       setElapsedSeconds(0);
       if (intervalRef.current) {
@@ -48,6 +72,7 @@ export default function Recorder({ onRecordingComplete }: Props) {
   const stop = () => {
     mediaRecorderRef.current?.requestData();
     mediaRecorderRef.current?.stop();
+    recognitionRef.current?.stop?.();
     setIsRecording(false);
     if (intervalRef.current) {
       window.clearInterval(intervalRef.current);
@@ -60,6 +85,8 @@ export default function Recorder({ onRecordingComplete }: Props) {
       if (intervalRef.current) {
         window.clearInterval(intervalRef.current);
       }
+      recognitionRef.current?.stop?.();
+      mediaRecorderRef.current?.stop?.();
     };
   }, []);
 
@@ -70,35 +97,34 @@ export default function Recorder({ onRecordingComplete }: Props) {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <button onClick={start} disabled={isRecording}>
-          Start
+    <div className="flex flex-col items-center gap-3">
+      <div className="flex items-center justify-center gap-3">
+        <button
+          onClick={start}
+          disabled={isRecording}
+          className={`w-[60px] h-[60px] rounded-full border-none text-white grid place-items-center ${
+            isRecording
+              ? "bg-slate-600 cursor-not-allowed"
+              : "bg-sky-600 hover:bg-sky-500"
+          }`}
+        >
+          <FiMic size={24} />
         </button>
-        <button onClick={stop} disabled={!isRecording}>
-          Stop
+        <button
+          onClick={stop}
+          disabled={!isRecording}
+          className={`w-[60px] h-[60px] rounded-full border-none text-white grid place-items-center ${
+            isRecording
+              ? "bg-red-600 hover:bg-red-500 cursor-pointer"
+              : "bg-slate-600 cursor-not-allowed"
+          }`}
+        >
+          <FiStopCircle size={24} />
         </button>
-        {isRecording && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span
-              style={{
-                width: 10,
-                height: 10,
-                borderRadius: "50%",
-                background: "red",
-                display: "inline-block",
-              }}
-            />
-            <span style={{ fontWeight: 600 }}>
-              Recording {formatTime(elapsedSeconds)}
-            </span>
-          </div>
-        )}
       </div>
-      {recordedBlob && (
-        <div>
-          <p>Recorded audio:</p>
-          <audio controls src={URL.createObjectURL(recordedBlob)} />
+      {isRecording && (
+        <div className="text-sky-300 text-sm">
+          Recording {formatTime(elapsedSeconds)}
         </div>
       )}
     </div>

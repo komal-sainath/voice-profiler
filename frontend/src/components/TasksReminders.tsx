@@ -44,46 +44,66 @@ export default function TasksReminders({ profileId }: Props) {
   };
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <h3>Tasks</h3>
-      <div style={{ display: "flex", gap: 8 }}>
+    <div className="grid gap-4">
+      <h3 className="text-lg">Tasks</h3>
+      <div className="flex flex-col gap-2 sm:flex-row">
         <input
           placeholder="Task title"
           value={taskTitle}
           onChange={(e) => setTaskTitle(e.target.value)}
+          className="min-w-0 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
         />
         <input
           type="datetime-local"
           value={taskDue}
           onChange={(e) => setTaskDue(e.target.value)}
+          className="min-w-0 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
         />
-        <button onClick={addTask}>Add</button>
+        <button
+          onClick={addTask}
+          className="rounded-lg bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
+        >
+          Add
+        </button>
       </div>
-      <ul>
+      <ul className="space-y-2">
         {tasks.map((t) => (
-          <li key={t.id}>
+          <li
+            key={t.id}
+            className="rounded-xl border border-slate-800 bg-slate-950 p-3"
+          >
             <strong>{t.title}</strong>{" "}
             {t.due_date ? `— due ${new Date(t.due_date).toLocaleString()}` : ""}
           </li>
         ))}
       </ul>
-      <h3>Reminders</h3>
-      <div style={{ display: "flex", gap: 8 }}>
+      <h3 className="text-lg">Reminders</h3>
+      <div className="flex flex-col gap-2 sm:flex-row">
         <input
           placeholder="Reminder message"
           value={remMsg}
           onChange={(e) => setRemMsg(e.target.value)}
+          className="min-w-0 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
         />
         <input
           type="datetime-local"
           value={remAt}
           onChange={(e) => setRemAt(e.target.value)}
+          className="min-w-0 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 outline-none focus-visible:ring-2 focus-visible:ring-sky-500"
         />
-        <button onClick={addReminder}>Add</button>
+        <button
+          onClick={addReminder}
+          className="rounded-lg bg-slate-800 px-4 py-2 text-white hover:bg-slate-700"
+        >
+          Add
+        </button>
       </div>
-      <ul>
+      <ul className="space-y-2">
         {reminders.map((r) => (
-          <li key={r.id}>
+          <li
+            key={r.id}
+            className="rounded-xl border border-slate-800 bg-slate-950 p-3"
+          >
             <strong>{r.message}</strong> — at{" "}
             {new Date(r.remind_at).toLocaleString()}
           </li>
