@@ -5,14 +5,23 @@ const api = axios.create({
   baseURL: "http://localhost:4000",
 });
 
-export async function createProfile(name: string, embedding: number[]) {
-  const { data } = await api.post("/profiles", { name, embedding });
+export async function createProfile(
+  name: string,
+  embedding: number[],
+  audio?: string,
+) {
+  const { data } = await api.post("/profiles", { name, embedding, audio });
   return data as { id: string; name: string };
 }
 
 export async function matchProfile(embedding: number[], threshold?: number) {
   const { data } = await api.post("/profiles/match", { embedding, threshold });
   return data as { match: { id: string; name: string } | null; score: number };
+}
+
+export async function getProfiles() {
+  const { data } = await api.get("/profiles");
+  return data as Array<{ id: string; name: string }>;
 }
 
 export async function getTasks(profileId: string) {

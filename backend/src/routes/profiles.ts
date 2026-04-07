@@ -9,17 +9,19 @@ const router = Router();
 const CreateProfileSchema = z.object({
   name: z.string().min(1),
   embedding: z.array(z.number()).min(8),
+  audio: z.string().optional(),
 });
 
 router.post("/", async (req, res) => {
   const parsed = CreateProfileSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error);
-  const { name, embedding } = parsed.data;
+  const { name, embedding, audio } = parsed.data;
   const norm = l2Normalize(embedding);
   const collection = await getProfilesCollection();
   const result = await collection.insertOne({
     name,
     embedding: norm,
+    ...(audio ? { audio } : {}),
     created_at: new Date(),
   });
   res.json({ id: result.insertedId.toString(), name });
