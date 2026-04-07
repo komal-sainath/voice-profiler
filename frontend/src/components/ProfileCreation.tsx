@@ -1,6 +1,6 @@
 // frontend/src/components/ProfileCreation.tsx
-import { useEffect, useState } from "react";
-import { createProfile, getProfiles } from "../api";
+import { useState } from "react";
+import { createProfile } from "../api";
 import { blobToAudioBuffer } from "../ml/audio";
 import { getEmbeddingFromAudioBuffer, loadRecognizer } from "../ml/tf";
 import Recorder from "./Recorder";
@@ -16,21 +16,6 @@ export default function ProfileCreation({ onProfileCreated }: Props) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [availableProfiles, setAvailableProfiles] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
-
-  useEffect(() => {
-    const loadProfiles = async () => {
-      try {
-        const profiles = await getProfiles();
-        setAvailableProfiles(profiles);
-      } catch (err) {
-        console.error("Failed to load profiles:", err);
-      }
-    };
-    loadProfiles();
-  }, []);
 
   const handleRecordingComplete = async (blob: Blob) => {
     setRecordingBlob(blob);
@@ -80,9 +65,6 @@ export default function ProfileCreation({ onProfileCreated }: Props) {
       const audio = await blobToDataUrl(recordingBlob);
       const created = await createProfile(newProfileName, embedding, audio);
 
-      const profiles = await getProfiles();
-      setAvailableProfiles(profiles);
-
       setNewProfileName("");
       setEmbedding(null);
       setRecordingBlob(null);
@@ -107,12 +89,6 @@ export default function ProfileCreation({ onProfileCreated }: Props) {
 
       <div className="text-slate-500 text-sm">
         <p>Record your voice to create a new profile.</p>
-        {availableProfiles.length > 0 && (
-          <p>
-            <strong>Existing profiles:</strong>{" "}
-            {availableProfiles.map((p) => p.name).join(", ")}
-          </p>
-        )}
       </div>
 
       <Recorder onRecordingComplete={handleRecordingComplete} />

@@ -1,6 +1,6 @@
 // frontend/src/components/ProfileMatch.tsx
 import { useEffect, useState } from "react";
-import { getProfiles, matchProfile } from "../api";
+import { matchProfile } from "../api";
 import { blobToAudioBuffer } from "../ml/audio";
 import { getEmbeddingFromAudioBuffer, loadRecognizer } from "../ml/tf";
 import Recorder from "./Recorder";
@@ -25,9 +25,6 @@ export default function ProfileMatch({ onProfileChange, onNoMatch }: Props) {
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeProfileId, setActiveProfileId] = useState<string | null>(null);
-  const [availableProfiles, setAvailableProfiles] = useState<
-    Array<{ id: string; name: string }>
-  >([]);
   const [lastRecordingUrl, setLastRecordingUrl] = useState<string | null>(null);
   const [pendingTranscript, setPendingTranscript] = useState<string | null>(
     null,
@@ -41,18 +38,6 @@ export default function ProfileMatch({ onProfileChange, onNoMatch }: Props) {
       text: "Welcome! Press the microphone to record your voice and sign in.",
     },
   ]);
-
-  useEffect(() => {
-    const loadProfiles = async () => {
-      try {
-        const profiles = await getProfiles();
-        setAvailableProfiles(profiles);
-      } catch (err) {
-        console.error("Failed to load profiles:", err);
-      }
-    };
-    loadProfiles();
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -143,14 +128,10 @@ export default function ProfileMatch({ onProfileChange, onNoMatch }: Props) {
     onProfileChange?.(null, null);
   };
 
-  const currentProfile = availableProfiles.find(
-    (p) => p.id === activeProfileId,
-  );
-
   return (
     <div className="grid gap-4 p-6 rounded-[28px] bg-slate-900 border border-white/10">
       <div className="flex justify-between items-center gap-4">
-        {activeProfileId && currentProfile ? (
+        {activeProfileId ? (
           <button
             onClick={handleSignOut}
             className="rounded-2xl bg-red-500 px-4 py-2 text-white hover:bg-red-400"
