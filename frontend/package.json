@@ -11,8 +11,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tensorflow-models/speech-commands": "^0.5.4",
-    "@tensorflow/tfjs": "^4.22.0",
     "axios": "^1.14.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",

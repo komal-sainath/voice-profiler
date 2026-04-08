@@ -1,6 +1,7 @@
 // backend/src/routes/profiles.ts
 import { Router } from "express";
 import { z } from "zod";
+import { getEmbeddingFromAudio } from "../audioEmbeddings";
 import { getProfilesCollection } from "../db";
 import { bestMatch, l2Normalize } from "../embeddings";
 
@@ -39,13 +40,48 @@ router.get("/", async (_req, res) => {
 });
 
 router.post("/match", async (req, res) => {
-  const EmbeddingSchema = z.object({
-    embedding: z.array(z.number()).min(8),
-    threshold: z.number().min(-1).max(1).optional(),
-  });
-  const parsed = EmbeddingSchema.safeParse(req.body);
+  const MatchSchema = z.union([
+    z.object({
+      embedding: z.array(z.number()).min(8),
+      audio: z.undefined().optional(),
+      threshold: z.number().min(-1).max(1).optional(),
+    }),
+    z.object({
+      audio: z.string(),
+      embedding: z.undefined().optional(),
+      threshold: z.number().min(-1).max(1).optional(),
+    }),
+  ]);
+
+  const parsed = MatchSchema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json(parsed.error);
-  const { embedding, threshold = 0.6 } = parsed.data;
+
+  const { threshold = 0.6 } = req.body;
+  let embedding: number[];
+
+  try {
+    if (req.body.audio) {
+      // Extract embedding from audio
+      const audioBuffer = Buffer.from(req.body.audio, "base64");
+      embedding = getEmbeddingFromAudio(audioBuffer);
+    } else if (req.body.embedding) {
+      // Use provided embedding directly
+      embedding = req.body.embedding;
+    } else {
+      return res
+        .status(400)
+        .json({ error: "Must provide either 'audio' or 'embedding'" });
+    }
+  } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error";
+    console.error("Error processing audio:", errorMessage);
+    return res.status(400).json({
+      error: "Failed to process audio",
+      details: errorMessage,
+    });
+  }
+
   const norm = l2Normalize(embedding);
   const collection = await getProfilesCollection();
   const profiles = await collection.find({}).toArray();

@@ -1,8 +1,6 @@
 // frontend/src/components/ProfileCreation.tsx
 import { useState } from "react";
-import { createProfile } from "../api";
-import { blobToAudioBuffer } from "../ml/audio";
-import { getEmbeddingFromAudioBuffer, loadRecognizer } from "../ml/tf";
+import { createProfile, getEmbeddingFromAudio } from "../api";
 import Recorder from "./Recorder";
 
 type Props = {
@@ -25,9 +23,7 @@ export default function ProfileCreation({ onProfileCreated }: Props) {
     setEmbedding(null);
 
     try {
-      await loadRecognizer();
-      const audioBuffer = await blobToAudioBuffer(blob);
-      const emb = await getEmbeddingFromAudioBuffer(audioBuffer);
+      const emb = await getEmbeddingFromAudio(blob);
       setEmbedding(emb);
     } catch (err) {
       console.error(err);

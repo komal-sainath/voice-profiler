@@ -1,8 +1,6 @@
 // frontend/src/components/ProfileMatch.tsx
 import { useEffect, useState } from "react";
-import { matchProfile } from "../api";
-import { blobToAudioBuffer } from "../ml/audio";
-import { getEmbeddingFromAudioBuffer, loadRecognizer } from "../ml/tf";
+import { matchProfileWithAudio } from "../api";
 import Recorder from "./Recorder";
 
 const MATCH_THRESHOLD = 0.6;
@@ -78,10 +76,7 @@ export default function ProfileMatch({ onProfileChange, onNoMatch }: Props) {
     setPendingTranscript(null);
 
     try {
-      await loadRecognizer();
-      const audioBuffer = await blobToAudioBuffer(blob);
-      const emb = await getEmbeddingFromAudioBuffer(audioBuffer);
-      const match = await matchProfile(emb, MATCH_THRESHOLD);
+      const match = await matchProfileWithAudio(blob, MATCH_THRESHOLD);
 
       if (match.match && match.score >= MATCH_THRESHOLD) {
         setActiveProfileId(match.match.id);

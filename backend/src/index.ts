@@ -4,6 +4,7 @@ import "dotenv/config";
 import express from "express";
 import swaggerUi from "swagger-ui-express";
 import { initSchema } from "./db";
+import embeddingsRouter from "./routes/embeddings";
 import profilesRouter from "./routes/profiles";
 import remindersRouter from "./routes/reminders";
 import tasksRouter from "./routes/tasks";
@@ -26,6 +27,12 @@ const swaggerDocument = {
   },
   servers: [{ url: "http://localhost:4000" }],
   paths: {
+    "/embeddings": {
+      post: {
+        summary: "Extract embedding from audio",
+        responses: { "200": { description: "OK" } },
+      },
+    },
     "/profiles": {
       get: {
         summary: "Get all profiles",
@@ -61,6 +68,7 @@ const swaggerDocument = {
 
 app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
+app.use("/embeddings", embeddingsRouter);
 app.use("/profiles", profilesRouter);
 app.use("/tasks", tasksRouter);
 app.use("/reminders", remindersRouter);
